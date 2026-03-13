@@ -98,7 +98,7 @@ res.send("Restarting");
 
 function startBot(){
 
-botProcess=spawn("node",["Goat.js"],{
+botProcess=spawn("node",["SaGor.js"],{
 cwd:__dirname,
 shell:true
 });
