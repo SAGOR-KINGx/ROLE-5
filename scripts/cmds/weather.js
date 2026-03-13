@@ -1,89 +1,76 @@
 const axios = require("axios");
 const moment = require("moment-timezone");
-const fs = require("fs-extra");
 
 module.exports = {
   config: {
     name: "weather",
-    version: "1.0.0",
-    author: "NTKHANG",
+    version: "2.1",
+    author: "SaGor",
     countDown: 5,
     role: 0,
     shortDescription: {
-      vi: "Xem thời tiết trong 5 ngày",
-      en: "View 5-day weather forecast"
+      en: "Check weather"
     },
     longDescription: {
-      vi: "Xem thông tin thời tiết trong khu vực bạn nhập vào",
-      en: "Get weather forecast for a given location"
+      en: "Weather info without API key"
     },
     category: "utility",
     guide: {
-      vi: "{pn} [địa điểm]",
-      en: "{pn} [location]"
+      en: "{pn} [city]"
     }
   },
 
   onStart: async function ({ message, args }) {
-    const area = args.join(" ");
-    if (!area) return message.reply("🌍 Vui lòng nhập địa điểm!");
 
-    let areaKey, location = {}, dataWeather;
-
-    try {
-      const response = await axios.get(
-        `https://api.accuweather.com/locations/v1/cities/search.json?q=${encodeURIComponent(area)}&apikey=d7e795ae6a0d44aaa8abb1a0a7ac19e4&language=vi-vn`
-      );
-      if (response.data.length === 0) return message.reply("❌ Không tìm thấy địa điểm này!");
-      const data = response.data[0];
-      areaKey = data.Key;
-      location = { latitude: data.GeoPosition.Latitude, longitude: data.GeoPosition.Longitude };
-    } catch (err) {
-      console.log(err);
-      return message.reply("⚠️ Đã có lỗi xảy ra khi tìm địa điểm!");
-    }
+    const city = args.join(" ");
+    if (!city)
+      return message.reply("🌍 | Enter city name\nExample: .weather Dhaka");
 
     try {
-      dataWeather = await axios.get(
-        `http://api.accuweather.com/forecasts/v1/daily/10day/${areaKey}?apikey=d7e795ae6a0d44aaa8abb1a0a7ac19e4&details=true&language=vi`
+
+      const geo = await axios.get(
+        `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1`
       );
-    } catch (err) {
-      console.log(err);
-      return message.reply("⚠️ Đã có lỗi xảy ra khi lấy dữ liệu thời tiết!");
+
+      if (!geo.data.results)
+        return message.reply("❌ | City not found");
+
+      const place = geo.data.results[0];
+
+      const lat = place.latitude;
+      const lon = place.longitude;
+
+      const weather = await axios.get(
+        `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`
+      );
+
+      const data = weather.data.current_weather;
+
+      const msg =
+`🌤 WEATHER INFO
+
+📍 City: ${place.name}, ${place.country}
+
+🌡 Temperature: ${data.temperature}°C
+💨 Wind Speed: ${data.windspeed} km/h
+🧭 Wind Direction: ${data.winddirection}°
+
+🕒 Time: ${moment().tz("Asia/Dhaka").format("hh:mm A | DD/MM/YYYY")}
+`;
+
+      return message.reply({
+        body: msg,
+        location: {
+          latitude: lat,
+          longitude: lon,
+          current: true
+        }
+      });
+
+    } catch (e) {
+      console.log(e);
+      return message.reply("⚠️ | Weather error");
     }
 
-    const msg = generateWeatherMessage(dataWeather.data);
-
-    return message.reply({
-      body: msg,
-      location: {
-        latitude: location.latitude,
-        longitude: location.longitude,
-        current: true
-      }
-    });
   }
 };
-
-// ==================== SUPPORT FUNCTIONS ====================
-
-function generateWeatherMessage(dataWeather) {
-  const dataWeatherToday = dataWeather.DailyForecasts[0];
-  return `🌤 Thời tiết hôm nay:\n${dataWeather.Headline.Text}` +
-    `\n🌡 Nhiệt độ thấp nhất - cao nhất: ${convertFtoC(dataWeatherToday.Temperature.Minimum.Value)}°C - ${convertFtoC(dataWeatherToday.Temperature.Maximum.Value)}°C` +
-    `\n🌡 Nhiệt độ cảm nhận được: ${convertFtoC(dataWeatherToday.RealFeelTemperature.Minimum.Value)}°C - ${convertFtoC(dataWeatherToday.RealFeelTemperature.Maximum.Value)}°C` +
-    `\n🌅 Mặt trời mọc: ${formatHours(dataWeatherToday.Sun.Rise)}` +
-    `\n🌄 Mặt trời lặn: ${formatHours(dataWeatherToday.Sun.Set)}` +
-    `\n🌙 Mặt trăng mọc: ${formatHours(dataWeatherToday.Moon.Rise)}` +
-    `\n🏙️ Mặt trăng lặn: ${formatHours(dataWeatherToday.Moon.Set)}` +
-    `\n☀️ Ban ngày: ${dataWeatherToday.Day.LongPhrase}` +
-    `\n🌌 Ban đêm: ${dataWeatherToday.Night.LongPhrase}`;
-}
-
-function convertFtoC(F) {
-  return Math.floor((F - 32) / 1.8);
-}
-
-function formatHours(hours) {
-  return moment(hours).tz("Asia/Ho_Chi_Minh").format("HH[h]mm");
-}
