@@ -1,20 +1,62 @@
-<!DOCTYPE html><html><head><meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0"><title>BOT DASHBOARD</title><script src="https://cdn.jsdelivr.net/npm/chart.js"></script><style>
+<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>SAGOR BOT PANEL</title><script src="https://cdn.jsdelivr.net/npm/chart.js"></script><style>
 
 body{
-background:#020617;
-color:#00ff9c;
-font-family:monospace;
 margin:0;
+font-family:Arial;
+background:#120021;
+color:white;
+}
+
+/* LOGIN */
+
+#loginPage{
+height:100vh;
+display:flex;
+justify-content:center;
+align-items:center;
+}
+
+.card{
+width:300px;
+padding:40px;
+background:#3f3f3f;
+border-radius:20px;
+text-align:center;
+}
+
+input{
+width:100%;
+padding:12px;
+margin-top:10px;
+border:none;
+border-radius:30px;
+background:#3f3f3f;
+color:white;
+}
+
+button{
+width:100%;
+padding:12px;
+margin-top:10px;
+border:none;
+border-radius:30px;
+background:#9333ea;
+color:white;
+cursor:pointer;
+}
+
+/* DASHBOARD */
+
+#dashboard{
+display:none;
 }
 
 header{
 text-align:center;
-padding:12px;
-font-size:20px;
+padding:15px;
+font-size:22px;
+color:#c084fc;
 }
-
-/* GRID */
 
 .grid{
 display:grid;
@@ -23,112 +65,89 @@ gap:10px;
 padding:10px;
 }
 
-/* WIDGET */
-
 .widget{
-background:black;
-border:1px solid #00ff9c;
-padding:10px;
+background:#1b0033;
+padding:15px;
+border-radius:10px;
 text-align:center;
-cursor:pointer;
-transition:.25s;
 }
 
-.widget:hover{
-box-shadow:0 0 10px #00ff9c;
-transform:translateY(-2px);
-}
-
-/* TERMINAL */
-
-.terminal{
-background:black;
-border:1px solid #00ff9c;
-padding:8px;
-height:240px;
-overflow:auto;
-font-size:12px;
-}
-
-/* BOX */
-
-.box{
-background:black;
-border:1px solid #00ff9c;
-padding:8px;
-max-height:160px;
-overflow:auto;
-display:none;
-margin-bottom:10px;
-}
-
-button{
-background:#00ff9c;
-border:none;
-padding:8px;
-cursor:pointer;
-font-weight:bold;
-}
-
-button:hover{
-box-shadow:0 0 10px #00ff9c;
-}
-
-input{
+meter{
 width:100%;
-padding:6px;
-background:black;
-color:#00ff9c;
-border:1px solid #00ff9c;
-margin-bottom:8px;
-}
-
-.online{color:#00ff00}
-.offline{color:red}
-
-canvas{
-padding:10px;
-}
-
-/* MOBILE */
-
-@media(max-width:768px){
-
-.grid{
-grid-template-columns:1fr 1fr;
+height:18px;
 }
 
 .terminal{
-height:200px;
+background:black;
+padding:12px;
+margin:10px;
+height:230px;
+overflow:auto;
+font-size:13px;
+border-radius:12px;
+box-shadow:0 0 10px #9333ea inset;
+}
+
+</style></head><body><!-- LOGIN --><div id="loginPage"><div class="card"><h3>BOT LOGIN</h3><input type="password" id="pass" placeholder="Password"><button onclick="login()">Login</button>
+
+<p id="msg"></p></div></div><!-- DASHBOARD --><div id="dashboard"><header>SAGOR BOT DASHBOARD</header><div class="grid"><div class="widget">
+Commands
+<p id="cmd"></p>
+</div><div class="widget">
+Events
+<p id="evt"></p>
+</div><div class="widget">
+Ping
+<p id="ping"></p>
+</div><div class="widget">
+Uptime
+<p id="uptime"></p>
+</div><div class="widget">
+CPU
+<meter id="cpuMeter" min="0" max="10"></meter>
+<p id="cpuText"></p>
+</div><div class="widget">
+RAM
+<meter id="ramMeter"></meter>
+<p id="ramText"></p>
+</div><div class="widget">
+Activity
+<p id="activity"></p>
+</div></div><div style="padding:10px"><button onclick="startBot()">Start</button>
+<button onclick="stopBot()">Stop</button>
+<button onclick="restartBot()">Restart</button>
+
+</div><canvas id="chart"></canvas>
+
+<div class="terminal" id="logs"></div></div><script>
+
+const PASSWORD="2255";
+
+let autoScroll=true;
+
+/* login */
+
+function login(){
+
+if(pass.value===PASSWORD){
+
+loginPage.style.display="none";
+dashboard.style.display="block";
+
+loadStatus();
+loadLogs();
+
+}else{
+
+msg.innerText="Wrong Password";
+
 }
 
 }
 
-</style></head><body><header>
-⚡ SAGOR BOT CONTROL PANEL
-</header><div class="grid"><div class="widget">CPU<p id="cpu"></p></div><div class="widget">RAM<p id="ram"></p></div><div class="widget">PING<p id="ping"></p></div><div class="widget">TEMP<p id="temp"></p></div><div class="widget">UPTIME<p id="uptime"></p></div><div class="widget">ACTIVITY<p id="activity"></p></div><div class="widget" onclick="toggleCmd()">
-COMMANDS
-<p id="commandsCount"></p>
-</div><div class="widget" onclick="toggleEvent()">
-EVENTS
-<p id="eventsCount"></p>
-</div><div class="widget">
-STATUS
-<p id="status"></p>
-</div><div class="widget">
-<button onclick="restartBot()">RESTART</button>
-</div></div><canvas id="chart"></canvas>
-
-<div style="padding:10px"><h3>Command List</h3><input id="search" placeholder="Search command"><div class="box" id="cmdBox">
-<ul id="cmdList"></ul>
-</div><h3>Event List</h3><div class="box" id="eventBox">
-<ul id="eventList"></ul>
-</div><h3>Live Logs</h3><div class="terminal" id="logs"></div></div><script>
-
-/* GRAPH */
+/* chart */
 
 let cpuData=[];
-let ramData=[];
 let labels=[];
 
 const chart=new Chart(document.getElementById("chart"),{
@@ -138,78 +157,63 @@ type:"line",
 data:{
 labels:labels,
 datasets:[
-{label:"CPU",data:cpuData,borderColor:"#00ff9c"},
-{label:"RAM",data:ramData,borderColor:"#ff00ff"}
+{label:"CPU",data:cpuData,borderColor:"#c084fc"}
 ]
 }
 
 });
 
-/* STATUS */
+/* status */
 
 async function loadStatus(){
 
 const res=await fetch("/api/status");
 const data=await res.json();
 
-document.getElementById("cpu").innerText=data.cpu;
-document.getElementById("ram").innerText=data.ram+" MB";
+cmd.innerText=data.commandsCount;
+evt.innerText=data.eventsCount;
 
-document.getElementById("ping").innerText=data.ping+" ms";
-document.getElementById("temp").innerText=data.temp+" °C";
+ping.innerText=data.ping+" ms";
+activity.innerText=data.activity;
 
-document.getElementById("uptime").innerText=data.uptime+" s";
-document.getElementById("activity").innerText=data.activity;
+cpuMeter.value=data.cpu;
+ramMeter.value=data.ram;
 
-document.getElementById("commandsCount").innerText=data.commandsCount;
-document.getElementById("eventsCount").innerText=data.eventsCount;
+cpuText.innerText=data.cpu+" %";
+ramText.innerText=data.ram+" MB";
 
-document.getElementById("status").innerHTML=
-data.online
-? '<span class="online">ONLINE</span>'
-: '<span class="offline">OFFLINE</span>';
+/* uptime */
 
-/* COMMAND LIST */
+let s=data.uptime;
 
-const cmdList=document.getElementById("cmdList");
-cmdList.innerHTML="";
+let d=Math.floor(s/86400);
+s%=86400;
 
-data.commands.forEach(cmd=>{
-const li=document.createElement("li");
-li.textContent=cmd;
-cmdList.appendChild(li);
-});
+let h=Math.floor(s/3600);
+s%=3600;
 
-/* EVENT LIST */
+let m=Math.floor(s/60);
+s%=60;
 
-const eventList=document.getElementById("eventList");
-eventList.innerHTML="";
+uptime.innerText=`${d}d ${h}h ${m}m ${s}s`;
 
-data.events.forEach(ev=>{
-const li=document.createElement("li");
-li.textContent=ev;
-eventList.appendChild(li);
-});
+/* graph */
 
 labels.push("");
-
 cpuData.push(data.cpu);
-ramData.push(data.ram);
 
-if(labels.length>25){
+if(labels.length>20){
+
 labels.shift();
 cpuData.shift();
-ramData.shift();
+
 }
 
 chart.update();
 
 }
 
-/* LOG SYSTEM */
-
-let lastCount=0;
-let autoScroll=true;
+/* logs */
 
 const logBox=document.getElementById("logs");
 
@@ -223,80 +227,36 @@ autoScroll=nearBottom;
 
 });
 
-function rgb(){
-return `rgb(${Math.random()*255},
-${Math.random()*255},
-${Math.random()*255})`;
-}
-
 async function loadLogs(){
 
 const res=await fetch("/api/logs");
+
 const data=await res.json();
 
-for(let i=lastCount;i<data.length;i++){
+data.forEach(l=>{
 
-const div=document.createElement("div");
+let div=document.createElement("div");
 
-div.textContent=data[i];
-div.style.color=rgb();
+div.textContent=l;
+
+div.style.color=`rgb(${Math.random()*255},${Math.random()*255},${Math.random()*255})`;
 
 logBox.appendChild(div);
 
-}
-
-lastCount=data.length;
+});
 
 if(autoScroll)
 logBox.scrollTop=logBox.scrollHeight;
 
 }
 
-/* SEARCH */
+/* controls */
 
-document.getElementById("search")
-.addEventListener("keyup",function(){
-
-const val=this.value.toLowerCase();
-
-document.querySelectorAll("#cmdList li")
-.forEach(li=>{
-
-li.style.display=
-li.textContent.toLowerCase()
-.includes(val)
-?"block":"none";
-
-});
-
-});
-
-/* TOGGLE */
-
-function toggleCmd(){
-const box=document.getElementById("cmdBox");
-box.style.display=
-box.style.display==="block"?"none":"block";
-}
-
-function toggleEvent(){
-const box=document.getElementById("eventBox");
-box.style.display=
-box.style.display==="block"?"none":"block";
-}
-
-/* RESTART */
-
-async function restartBot(){
-await fetch("/api/restart");
-}
-
-/* REFRESH */
+function startBot(){ fetch("/api/start"); }
+function stopBot(){ fetch("/api/stop"); }
+function restartBot(){ fetch("/api/restart"); }
 
 setInterval(loadStatus,3000);
-setInterval(loadLogs,1200);
-
-loadStatus();
-loadLogs();
+setInterval(loadLogs,2000);
 
 </script></body></html>
