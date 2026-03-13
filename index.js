@@ -1,23 +1,24 @@
 const express = require("express");
 const path = require("path");
-const fs = require("fs");
 const os = require("os");
+const fs = require("fs");
 const { spawn } = require("child_process");
-const log = require("./logger/log.js");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-let botProcess;
-let logs=[];
-let startTime=Date.now();
-let activity=0;
+let botProcess = null;
+let logs = [];
+let startTime = Date.now();
+let activity = 0;
 
-/* remove ansi color */
+/* remove ansi */
 
 function clean(text){
-return text.replace(/\x1B[[0-9;]*[A-Za-z]/g,"");
+return text.replace(/\x1B[[0-9;]*m/g,"");
 }
+
+/* static */
 
 app.use(express.static(path.join(__dirname,"public")));
 
@@ -37,8 +38,8 @@ const cpu=os.loadavg()[0].toFixed(2);
 
 const uptime=Math.floor((Date.now()-startTime)/1000);
 
-let commands=[];
-let events=[];
+let commands=0;
+let events=0;
 
 try{
 
@@ -46,10 +47,10 @@ const cmdPath=path.join(__dirname,"scripts","cmds");
 const eventPath=path.join(__dirname,"scripts","events");
 
 if(fs.existsSync(cmdPath))
-commands=fs.readdirSync(cmdPath).filter(f=>f.endsWith(".js"));
+commands=fs.readdirSync(cmdPath).length;
 
 if(fs.existsSync(eventPath))
-events=fs.readdirSync(eventPath).filter(f=>f.endsWith(".js"));
+events=fs.readdirSync(eventPath).length;
 
 }catch{}
 
@@ -60,15 +61,11 @@ ram,
 uptime,
 
 ping:Math.floor(Math.random()*20)+20,
-temp:(30+Math.random()*10).toFixed(1),
 
 activity,
 
-commandsCount:commands.length,
-eventsCount:events.length,
-
-commands,
-events,
+commandsCount:commands,
+eventsCount:events,
 
 online:botProcess?true:false
 
@@ -79,10 +76,37 @@ online:botProcess?true:false
 /* LOG API */
 
 app.get("/api/logs",(req,res)=>{
-res.json(logs.slice(-600));
+res.json(logs.slice(-400));
 });
 
-/* RESTART */
+/* BOT START */
+
+app.get("/api/start",(req,res)=>{
+
+if(botProcess) return res.send("Already running");
+
+startBot();
+
+res.send("Bot started");
+
+});
+
+/* BOT STOP */
+
+app.get("/api/stop",(req,res)=>{
+
+if(botProcess){
+
+botProcess.kill();
+botProcess=null;
+
+}
+
+res.send("Bot stopped");
+
+});
+
+/* BOT RESTART */
 
 app.get("/api/restart",(req,res)=>{
 
@@ -90,11 +114,11 @@ if(botProcess) botProcess.kill();
 
 startBot();
 
-res.send("Restarting");
+res.send("Bot restarted");
 
 });
 
-/* BOT */
+/* BOT RUN */
 
 function startBot(){
 
@@ -105,27 +129,21 @@ shell:true
 
 botProcess.stdout.on("data",(data)=>{
 
-const msg=clean(data.toString());
+const msg=clean(data.toString().trim());
 
 logs.push(msg);
 activity++;
+
+if(logs.length>500) logs.shift();
 
 });
 
 botProcess.stderr.on("data",(data)=>{
 
-const msg=clean(data.toString());
+const msg=clean(data.toString().trim());
 
-logs.push(msg);
+logs.push("[ERROR] "+msg);
 activity++;
-
-});
-
-botProcess.on("close",(code)=>{
-
-logs.push("BOT EXITED "+code);
-
-setTimeout(startBot,3000);
 
 });
 
@@ -134,5 +152,3 @@ setTimeout(startBot,3000);
 app.listen(PORT,"0.0.0.0",()=>{
 console.log("Dashboard running "+PORT);
 });
-
-startBot();
