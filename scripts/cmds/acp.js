@@ -19,6 +19,9 @@ module.exports = {
   onReply: async function ({ message, Reply, event, api, commandName }) {
     const { author, listRequest, messageID } = Reply;
     if (author !== event.senderID) return;
+
+    if (!event.body) return;
+
     const args = event.body.trim().toLowerCase().split(/\s+/);
 
     clearTimeout(Reply.unsendTimeout);
@@ -42,18 +45,19 @@ module.exports = {
       form.fb_api_req_friendly_name = "FriendingCometFriendRequestConfirmMutation";
       form.doc_id = "3147613905362928";
       actionType = "Accepted";
-    } else if (args[0] === "del") {
+    }
+    else if (args[0] === "del") {
       form.fb_api_req_friendly_name = "FriendingCometFriendRequestDeleteMutation";
       form.doc_id = "4108254489275063";
       actionType = "Rejected";
-    } else {
+    }
+    else {
       return api.sendMessage("😒 Invalid command. Usage: <add|del> <number|all>", event.threadID, event.messageID);
     }
 
     let targetIDs = args.slice(1);
-    if (args[1] === "all") {
+    if (args[1] === "all")
       targetIDs = Array.from({ length: listRequest.length }, (_, i) => i + 1);
-    }
 
     const newTargetIDs = [];
     const promiseFriends = [];
@@ -62,41 +66,60 @@ module.exports = {
     const failed = [];
 
     for (const stt of targetIDs) {
+
       const user = listRequest[parseInt(stt) - 1];
+
       if (!user) {
         failed.push(`😮‍💨 Can't find request #${stt}`);
         continue;
       }
+
       form.variables.input.friend_requester_id = user.node.id;
-      form.variables = JSON.stringify(form.variables);
+
+      const postForm = {
+        ...form,
+        variables: JSON.stringify(form.variables)
+      };
+
       newTargetIDs.push(user);
-      promiseFriends.push(api.httpPost("https://www.facebook.com/api/graphql/", form));
-      form.variables = JSON.parse(form.variables);
+      promiseFriends.push(api.httpPost("https://www.facebook.com/api/graphql/", postForm));
     }
 
     const results = await Promise.allSettled(promiseFriends);
 
     results.forEach((result, index) => {
+
       const user = newTargetIDs[index];
-      if (result.status === "fulfilled" && !JSON.parse(result.value).errors) {
-        success.push(`🎀 𝐒𝐮𝐜𝐜𝐞𝐬𝐬𝐟𝐮𝐥𝐥𝐲 ${actionType}: ${user.node.name} (${user.node.id})`);
-      } else {
+
+      try {
+        const data = JSON.parse(result.value || "{}");
+
+        if (result.status === "fulfilled" && !data.errors)
+          success.push(`🎀 𝐒𝐮𝐜𝐜𝐞𝐬𝐬𝐟𝐮𝐥𝐥𝐲 ${actionType}: ${user.node.name} (${user.node.id})`);
+        else
+          failed.push(`😿 𝐅𝐚𝐢𝐥𝐞𝐝: ${user.node.name} (${user.node.id})`);
+
+      } catch {
         failed.push(`😿 𝐅𝐚𝐢𝐥𝐞𝐝: ${user.node.name} (${user.node.id})`);
       }
+
     });
 
     let replyMsg = "";
-    if (success.length > 0) replyMsg += success.join("\n") + "\n";
-    if (failed.length > 0) replyMsg += failed.join("\n");
+    if (success.length) replyMsg += success.join("\n") + "\n";
+    if (failed.length) replyMsg += failed.join("\n");
 
-    if (replyMsg) api.sendMessage(replyMsg, event.threadID, event.messageID);
-    else api.sendMessage("🍓 𝐍𝐨 𝐯𝐚𝐥𝐢𝐝 𝐫𝐞𝐪𝐮𝐞𝐬𝐭𝐬 𝐰𝐞𝐫𝐞 𝐩𝐫𝐨𝐜𝐞𝐬𝐬𝐞𝐝.", event.threadID);
+    if (replyMsg)
+      api.sendMessage(replyMsg, event.threadID, event.messageID);
+    else
+      api.sendMessage("🍓 𝐍𝐨 𝐯𝐚𝐥𝐢𝐝 𝐫𝐞𝐪𝐮𝐞𝐬𝐭𝐬 𝐰𝐞𝐫𝐞 𝐩𝐫𝐨𝐜𝐞𝐬𝐬𝐞𝐝.", event.threadID);
 
     api.unsendMessage(messageID);
   },
 
   onStart: async function ({ event, api, commandName }) {
     try {
+
       const form = {
         av: api.getCurrentUserID(),
         fb_api_req_friendly_name: "FriendingCometFriendRequestsRootQueryRelayPreloader",
@@ -106,13 +129,15 @@ module.exports = {
       };
 
       const response = await api.httpPost("https://www.facebook.com/api/graphql/", form);
-      const listRequest = JSON.parse(response).data.viewer.friending_possibilities.edges;
+      const data = JSON.parse(response || "{}");
 
-      if (!listRequest || listRequest.length === 0) {
+      const listRequest = data?.data?.viewer?.friending_possibilities?.edges || [];
+
+      if (!listRequest.length)
         return api.sendMessage("🎀 \n𝐘𝐨𝐮 𝐡𝐚𝐯𝐞 𝐧𝐨 𝐩𝐞𝐧𝐝𝐢𝐧𝐠 𝐟𝐫𝐢𝐞𝐧𝐝 𝐫𝐞𝐪𝐮𝐞𝐬𝐭𝐬!", event.threadID);
-      }
 
       let msg = "    》 𝐅𝐫𝐢𝐞𝐧𝐝 𝐑𝐞𝐪𝐮𝐞𝐬𝐭𝐬 《\n\n";
+
       listRequest.forEach((user, index) => {
         msg += `🎀  𝐍𝐨. ${index + 1}\n`;
         msg += `🎀 𝐍𝐚𝐦𝐞: ${user.node.name}\n`;
@@ -122,13 +147,13 @@ module.exports = {
       });
 
       msg += "\n🎀 𝐑𝐞𝐩𝐥𝐲 𝐰𝐢𝐭𝐡 🎀\n";
-      msg += "🎀 add <number> —\n";
-      msg += "🎀 del <number> — \n";
-      msg += "🎀 add all —\n";
-      msg += "🎀 del all —\n\n";
-      msg += "╚════════════════╝";
+      msg += "🎀 add <number>\n";
+      msg += "🎀 del <number>\n";
+      msg += "🎀 add all\n";
+      msg += "🎀 del all\n";
 
       api.sendMessage(msg, event.threadID, (e, info) => {
+
         global.GoatBot.onReply.set(info.messageID, {
           commandName,
           messageID: info.messageID,
@@ -138,6 +163,7 @@ module.exports = {
             api.unsendMessage(info.messageID);
           }, 2 * 60 * 1000)
         });
+
       }, event.messageID);
 
     } catch (error) {
