@@ -44,6 +44,8 @@ if (!globalData || typeof globalData.get !== "function")
 				}
 
 				global.temp.commandSpamTracker[threadID].push(now);
+				if (global.temp.commandSpamTracker[threadID].length > 20)
+ global.temp.commandSpamTracker[threadID].shift();
 
 				global.temp.commandSpamTracker[threadID] = global.temp.commandSpamTracker[threadID]
 								.filter(time => now - time < timeWindow);
@@ -90,7 +92,7 @@ function getRole(threadData, senderID) {
 				if (devUsers.includes(senderID))
 								return 4;
 				if (premiumUsers.includes(senderID)) {
-								const userData = global.db.allUserData.find(u => u.userID == senderID);
+								const userData = (global.db.allUserData || []).find(u => u.userID == senderID);
 								if (userData && userData.data && userData.data.premiumExpireTime) {
 												if (userData.data.premiumExpireTime < Date.now()) {
 																global.temp.expiredPremiumUsers = global.temp.expiredPremiumUsers || [];
@@ -255,22 +257,19 @@ module.exports = function (api, threadModel, userModel, dashBoardModel, globalMo
 												return;
 
 								const senderID = event.userID || event.senderID || event.author;
-let threadData = global.db.allThreadData?.find(t => t.threadID == threadID);
-let userData = global.db.allUserData?.find(u => u.userID == senderID);
+let threadData = (global.db.allThreadData || []).find(t => t.threadID == threadID);
+let userData = (global.db.allUserData || []).find(u => u.userID == senderID);
 
 // GoatBot old command compatibility
 event.senderID = senderID;
 
-if (!event.mentions)
- event.mentions = {};
- // OLD CMD TAG FIX
-if (typeof event.mentions !== "object")
- event.mentions = {};
-
-for (const id in event.mentions) {
- if (!event.mentions[id])
-	event.mentions[id] = "";
+if (!event.mentions || typeof event.mentions !== "object") {
+	event.mentions = {};
 }
+
+Object.keys(event.mentions).forEach(id => {
+	if (!event.mentions[id]) event.mentions[id] = "";
+});
 // OLD CMD ARGUMENT FIX
 if (!event.args)
  event.args = [];
@@ -282,7 +281,7 @@ if (!event.body)
 // CREATE THREAD FIRST
 if (!threadData && !isNaN(threadID)) {
  if (global.temp.createThreadDataError?.includes(threadID))
-	return;
+  return;
 
  threadData = await threadsData.create(threadID);
  global.db.receivedTheFirstMessage[threadID] = true;
@@ -299,7 +298,7 @@ if (!threadData)
 
 if (!threadData.data)
  threadData.data = {};
-
+ 
  if (!threadData.data.aliases)
  threadData.data.aliases = {};
 
@@ -334,9 +333,9 @@ if (!userData.data)
  userData.data = {};
 
 	// MONEY FIX
-if (userData.money == null)
- userData.money = 0;							
-
+if (!userData.money)
+ userData.money = 0;				
+								
 				if (
 								autoRefreshThreadInfoFirstTime === true
 								&& !global.db.receivedTheFirstMessage[threadID]
@@ -344,7 +343,7 @@ if (userData.money == null)
 								global.db.receivedTheFirstMessage[threadID] = true;
 
 								if (threadsData && typeof threadsData.refreshInfo === "function") {
-		await threadsData.refreshInfo(threadID);
+    await threadsData.refreshInfo(threadID);
 }
 				}
 
@@ -403,7 +402,7 @@ if (!event.adminIDs)
 
 if (!event.threadData)
  event.threadData = threadData;
-
+ 
 				if (!event.body && !event.messageReply)
 		return;
 				// Mention fallback detection
@@ -424,10 +423,8 @@ if (mentionIDs.length === 0 && event.messageReply?.senderID) {
 
 						if (!body || (!body.startsWith(prefix) && !body.startsWith(adminPrefix)))
  return;
-if (body.startsWith(adminPrefix) && isAdminPrefixEnable) {
-	if (role < 2) {
-		return await message.reply("🍄✨ Only Admin Can Use This Prefix");
-	}
+if (body.startsWith(adminPrefix) && isAdminPrefixEnable && role < 2) {
+	return;
 }
 						let currentPrefix = "";
 
@@ -438,6 +435,9 @@ else if (isAdminPrefixEnable && body.startsWith(adminPrefix)) {
 	currentPrefix = adminPrefix;
 }
 						const dateNow = Date.now();
+						// Safety fix
+if (!client.countDown)
+ client.countDown = {};
 						const args = (body || "").slice(currentPrefix.length).trim().split(/ +/);
 						// ————————————  CHECK HAS COMMAND ——————————— //
 						let commandName = args.shift().toLowerCase();
@@ -646,6 +646,9 @@ if (!command) {
 
 																createMessageSyntaxError(commandName);
 																const getText2 = createGetText2(langCode, `${process.cwd()}/languages/cmds/${langCode}.js`, prefix, command);
+																if (!command.onStart && typeof command.run === "function") {
+ command.onStart = command.run;
+}
 																await command.onStart({
 																				...parameters,
 																				args,
@@ -669,7 +672,14 @@ if (!command) {
 								 +------------------------------------------------+
 								*/
 								async function onChat() {
-
+// OLD CMD handleEvent support
+for (const cmd of GoatBot.commands.values()) {
+ if (typeof cmd.handleEvent === "function") {
+  try {
+   await cmd.handleEvent({ api, event, threadsData, usersData });
+  } catch (e) {}
+ }
+}
 				const body = event.body || "";
 
 				const allOnChat = Array.isArray(GoatBot.onChat) ? GoatBot.onChat : [];
@@ -677,7 +687,7 @@ if (!command) {
 												// Anti Badword (config detect)
 const antiBadword = global.GoatBot.config.antiBadword || {};
 // Anti Link (All Links)
-const linkRegex = /(https?:\/\/|www\.)[^\s]+/i;
+const linkRegex = /(https?:\/\/|www\.|\.com|\.net|\.org|\.io|\.co)/i;
 
 if (threadData?.data?.antilink === true && body && linkRegex.test(body)) {
  if (role < 1) {
@@ -698,10 +708,11 @@ if (threadData?.data?.antilink === true && body && linkRegex.test(body)) {
 	if (global.temp.linkWarn[threadID][senderID] >= maxWarn) {
 	 await message.reply("🚫 You were kicked for sending links.");
 	 try {
- if (typeof api.removeUserFromGroup === "function")
- await api.removeUserFromGroup(senderID, threadID);
-} catch(e) {
- message.reply("⚠️ Cannot remove user. Bot may not be admin.");
+	if (typeof api.removeUserFromGroup === "function") {
+		await api.removeUserFromGroup(senderID, threadID);
+	}
+} catch (e) {
+	message.reply("⚠️ Cannot remove user. Bot may not be admin.");
 }
 	 delete global.temp.linkWarn[threadID][senderID];
 	} else {
@@ -842,6 +853,7 @@ if (antiBadword?.enable === true) {
 																if (threadIDsChattedFirstTime.includes(threadID))
 																				continue;
 																const command = GoatBot.commands.get(commandName);
+																
 																if (!command)
 																				continue;
 
@@ -904,6 +916,10 @@ if (antiBadword?.enable === true) {
 																return log.err("onReply", `Can't find command name to execute this reply!`, Reply);
 												}
 												const command = GoatBot.commands.get(commandName);
+												// OLD CMD handleReply support
+if (!command.onReply && typeof command.handleReply === "function") {
+ command.onReply = command.handleReply;
+}
 												if (!command) {
 																message.reply(utils.getText({ lang: langCode, head: "handlerEvents" }, "cannotFindCommand", commandName));
 																return log.err("onReply", `Command "${commandName}" not found`, Reply);
@@ -981,6 +997,10 @@ if (antiBadword?.enable === true) {
 																return log.err("onReaction", `Can't find command name to execute this reaction!`, Reaction);
 												}
 												const command = GoatBot.commands.get(commandName);
+												// OLD CMD handleReaction support
+if (!command.onReaction && typeof command.handleReaction === "function") {
+ command.onReaction = command.handleReaction;
+}
 												if (!command) {
 																message.reply(utils.getText({ lang: langCode, head: "handlerEvents" }, "cannotFindCommand", commandName));
 																return log.err("onReaction", `Command "${commandName}" not found`, Reaction);
@@ -1184,6 +1204,7 @@ if (antiRaid.enable && event.logMessageType === "log:subscribe") {
 			global.temp.typingUsers[threadID].filter(id => id !== from);
 	}
 }
+ 
 
 								return {
 												onAnyEvent,
