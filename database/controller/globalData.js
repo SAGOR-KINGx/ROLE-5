@@ -63,19 +63,11 @@ module.exports = async function (databaseType, globalModel, fakeGraphql) {
 					switch (databaseType) {
 						case "mongodb":
 						case "sqlite": {
-							await globalModel.updateOne(
-	{ key: data.key },
-	data,
-	{ upsert: true }
-);
-
-let dataCreated = await globalModel.findOne({ key: data.key }).lean();
-dataCreated = _.omit(dataCreated, ["_id", "__v"]);
-							const existIndex = global.db.allGlobalData.findIndex(u => u.key == dataCreated.key);
-if (existIndex == -1)
-	global.db.allGlobalData.push(dataCreated);
-else
-	global.db.allGlobalData[existIndex] = dataCreated;
+							let dataCreated = await globalModel.create(data);
+							dataCreated = databaseType == "mongodb" ?
+								_.omit(dataCreated._doc, ["_id", "__v"]) :
+								dataCreated.get({ plain: true });
+							global.db.allGlobalData.push(dataCreated);
 							return _.cloneDeep(dataCreated);
 						}
 						case "json": {
@@ -156,6 +148,9 @@ else
 	}
 
 	async function create_(key, data) {
+	if (data === undefined || data === null) {
+	data = { data: {} };
+}
 		return new Promise(async (resolve, reject) => {
 			if (typeof key != "string") {
 				const err = new Error(`The first argument (key) must be a string, not a ${typeof key}`);
@@ -163,23 +158,27 @@ else
 				return reject(err);
 			}
 			if (data == undefined) {
-	data = { data: {} };
-}
-
+				const err = new Error(`The second argument (data) must be not undefined`);
+				err.name = "INVALID_TYPE";
+				return reject(err);
+			}
+if (typeof data !== "object") data = { data: {} };
 			data = {
 				key,
 				...data
 			};
 
 			if (!data.hasOwnProperty("data")) {
-	data.data = {};
-}
+				const err = new Error(`The data must have a property "data"`);
+				err.name = "INVALID_TYPE";
+				return reject(err);
+			}
 
-			/*if (Object.keys(data).some(key => !['key', 'data'].includes(key))) {
+			if (Object.keys(data).some(key => !['key', 'data'].includes(key))) {
 				const err = new Error(`The second argument (data) must be an object with keys is "key" and "data"`);
 				err.name = "INVALID_TYPE";
 				return reject(err);
-			}*/
+			}
 
 			const findInCreatingData = creatingGlobalData.find(u => u.key == key);
 			if (findInCreatingData)
@@ -187,9 +186,8 @@ else
 
 			const queue = new Promise(async function (resolve_, reject_) {
 				try {
-					if (global.db.allGlobalData.some(u => u.key == key)) {
-	const oldData = global.db.allGlobalData.find(u => u.key == key);
-	return resolve_(oldData);
+				if (global.db.allGlobalData.some(u => u.key == key)) {
+	return resolve(global.db.allGlobalData.find(u => u.key == key));
 }
 
 					data.key = key;
