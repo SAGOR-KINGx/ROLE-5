@@ -2,7 +2,7 @@ module.exports = {
 	config: {
 		name: "checkwarn",
 		version: "1.3",
-		author: "NTKhang",
+		author: "SaGor",
 		category: "events"
 	},
 
@@ -27,7 +27,7 @@ module.exports = {
 					return;
 				const { addedParticipants } = event.logMessageData;
 				for (const user of addedParticipants) {
-					const findUser = warnList.find(user => user.userID == user.userID);
+					const findUser = warnList.find(u => u.userID == user.userFbId);
 					if (findUser && findUser.list >= 3) {
 						const userName = user.fullName;
 						const uid = user.userFbId;
