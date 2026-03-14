@@ -72,31 +72,15 @@ module.exports = async function (databaseType, userModel, api, fakeGraphql) {
 			switch (mode) {
 				case "create": {
 					switch (databaseType) {
-						case "mongodb": {
-	await userModel.updateOne(
-		{ userID: userData.userID },
-		userData,
-		{ upsert: true }
-	);
-
-	let dataCreated = await userModel.findOne({ userID: userData.userID }).lean();
-	dataCreated = _.omit(dataCreated, ["_id", "__v"]);
-
-	const existIndex = global.db.allUserData.findIndex(u => u.userID == dataCreated.userID);
-	if (existIndex == -1)
-		global.db.allUserData.push(dataCreated);
-	else
-		global.db.allUserData[existIndex] = dataCreated;
-
-	return _.cloneDeep(dataCreated);
-}
-
-case "sqlite": {
-	let dataCreated = await userModel.create(userData);
-	dataCreated = dataCreated.get({ plain: true });
-	global.db.allUserData.push(dataCreated);
-	return _.cloneDeep(dataCreated);
-}
+						case "mongodb":
+						case "sqlite": {
+							let dataCreated = await userModel.create(userData);
+							dataCreated = databaseType === "mongodb" ?
+								_.omit(dataCreated._doc, ["_id", "__v"]) :
+								dataCreated.get({ plain: true });
+							global.db.allUserData.push(dataCreated);
+							return _.cloneDeep(dataCreated);
+						}
 						case "json": {
 							const timeCreate = moment.tz().format();
 							userData.createdAt = timeCreate;
