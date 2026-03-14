@@ -27,8 +27,6 @@ langs: {
 
 onStart: async ({ threadsData, message, event, api, getLang }) => {
 
-	/* ================= JOIN EVENT ================= */
-
 	if (event.logMessageType == "log:subscribe")
 		return async function () {
 
@@ -56,11 +54,11 @@ onStart: async ({ threadsData, message, event, api, getLang }) => {
 			global.temp.welcomeEvent[threadID].joinTimeout = setTimeout(async function () {
 
 				const threadData = await threadsData.get(threadID);
-				if (threadData.settings.sendWelcomeMessage == false)
+				if (threadData?.settings?.sendWelcomeMessage == false)
 					return;
 
 				const dataAddedParticipants = global.temp.welcomeEvent[threadID].dataAddedParticipants;
-				const threadName = threadData.threadName;
+				const threadName = threadData?.threadName || "Group";
 
 				const userName = [];
 				const mentions = [];
@@ -76,7 +74,7 @@ onStart: async ({ threadsData, message, event, api, getLang }) => {
 				if (userName.length == 0) return;
 
 				let { welcomeMessage = getLang("defaultWelcomeMessage") } =
-					threadData.data;
+					threadData?.data || {};
 
 				const form = {
 					mentions
@@ -106,8 +104,6 @@ onStart: async ({ threadsData, message, event, api, getLang }) => {
 			}, 1500);
 		};
 
-	/* ================= LEAVE EVENT ================= */
-
 	if (event.logMessageType == "log:unsubscribe") {
 
 		const { threadID } = event;
@@ -116,7 +112,7 @@ onStart: async ({ threadsData, message, event, api, getLang }) => {
 		if (leftID == api.getCurrentUserID()) return;
 
 		const threadData = await threadsData.get(threadID);
-		const threadName = threadData.threadName;
+		const threadName = threadData?.threadName || "Group";
 
 		const avatar = `https://graph.facebook.com/${leftID}/picture?width=512&height=512&access_token=6628568379%7Cc1e620fa708a1d5696fb991c1bde5662`;
 
